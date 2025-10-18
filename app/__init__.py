@@ -4,9 +4,10 @@ import os
 from flask import Flask, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+from app.config import config
 from app.models import db
 from app.routes import api
-from app.config import config
 
 limiter = Limiter(
     app=app,
