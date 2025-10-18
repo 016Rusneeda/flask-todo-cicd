@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -11,6 +12,7 @@ class Config:
     @staticmethod
     def init_app(app):
         pass
+
 
 class DevelopmentConfig(Config):
     """Development configuration"""

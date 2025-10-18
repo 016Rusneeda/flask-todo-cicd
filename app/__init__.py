@@ -1,4 +1,5 @@
 import os
+
 from flask import Flask, jsonify
 from app.models import db
 from app.routes import api
