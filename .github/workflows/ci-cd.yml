@@ -127,20 +127,17 @@ jobs:
         run: sleep 60
 
       - name: Health check
-      env:
-        RAILWAY_APP_URL: ${{ secrets.RAILWAY_APP_URL }}
-      run: |
-        for i in {1..5}; do
-          echo "Checking: $RAILWAY_APP_URL/api/health"
-          if curl -f "$RAILWAY_APP_URL/api/health"; then
-            echo "✅ Deployment successful!"
-            exit 0
-          fi
-          echo "Attempt $i failed, retrying in 10s..."
-          sleep 10
-        done
-        echo "x Deployment health check failed"
-        exit 1
+        run: |
+          for i in {1..5}; do
+            if curl -f ${{ secrets.RENDER_APP_URL }}/api/health; then
+              echo "Deployment successful!"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying..."
+            sleep 10
+          done
+          echo "Deployment health check failed"
+          exit 1
 
   # Job 4: Verify Railway deployment (auto-deploy)
   deploy-railway:
