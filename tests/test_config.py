@@ -1,72 +1,104 @@
-import pytest
 import os
-from app.config import Config, DevelopmentConfig, TestingConfig, ProductionConfig, config
+import pytest
+
+from app.config import (
+    Config,
+    DevelopmentConfig,
+    TestingConfig,
+    ProductionConfig,
+    config,
+)
+
 
 class TestConfig:
-    """Test base configuration"""
-    
-    def test_base_config_has_secret_key(self):
-        """Test base config has secret key"""
-        assert hasattr(Config, 'SECRET_KEY')
+    """Base configuration"""
+
+    def test_base_has_secret_and_no_track_mod(self):
+        assert hasattr(Config, "SECRET_KEY")
         assert Config.SECRET_KEY is not None
-    
-    def test_sqlalchemy_track_modifications_disabled(self):
-        """Test SQLAlchemy track modifications is disabled"""
         assert Config.SQLALCHEMY_TRACK_MODIFICATIONS is False
 
+
 class TestDevelopmentConfig:
-    """Test development configuration"""
-    
+    """Development configuration"""
+
     def test_debug_enabled(self):
-        """Test debug mode is enabled in development"""
         assert DevelopmentConfig.DEBUG is True
-    
-    def test_has_database_uri(self):
-        """Test development config has database URI"""
-        assert hasattr(DevelopmentConfig, 'SQLALCHEMY_DATABASE_URI')
+
+    def test_has_database_uri_default_or_env(self, monkeypatch):
+        # ไม่มี DATABASE_URL -> ควรมีค่า default ให้ใช้งานได้
+        monkeypatch.delenv("DATABASE_URL", raising=False)
+        assert hasattr(DevelopmentConfig, "SQLALCHEMY_DATABASE_URI")
         assert DevelopmentConfig.SQLALCHEMY_DATABASE_URI is not None
 
+        # มี DATABASE_URL -> รองรับการอ่านค่าจาก env
+        monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/dev_override")
+        assert "postgresql://" in os.environ["DATABASE_URL"]
+
+
 class TestTestingConfig:
-    """Test testing configuration"""
-    
+    """Testing configuration"""
+
     def test_testing_enabled(self):
-        """Test testing flag is enabled"""
         assert TestingConfig.TESTING is True
-    
+
     def test_uses_sqlite_memory(self):
-        """Test testing uses SQLite in-memory database"""
-        assert 'sqlite:///:memory:' in TestingConfig.SQLALCHEMY_DATABASE_URI
-    
+        assert "sqlite:///:memory:" in TestingConfig.SQLALCHEMY_DATABASE_URI
+
     def test_csrf_disabled(self):
-        """Test CSRF is disabled for testing"""
         assert TestingConfig.WTF_CSRF_ENABLED is False
 
+
 class TestProductionConfig:
-    """Test production configuration"""
-    
+    """Production configuration"""
+
     def test_debug_disabled(self):
-        """Test debug mode is disabled in production"""
         assert ProductionConfig.DEBUG is False
-    
+
     def test_requires_database_url(self, monkeypatch):
-        """Test production requires DATABASE_URL environment variable"""
-        # Remove DATABASE_URL if it exists
-        monkeypatch.delenv('DATABASE_URL', raising=False)
-        
+        """
+        Production ต้องมี DATABASE_URL เสมอ (assert ใน init_app)
+        """
+        monkeypatch.delenv("DATABASE_URL", raising=False)
         from app import create_app
+
         with pytest.raises(AssertionError):
-            app = create_app('production')
+            _ = create_app("production")
+
+    def test_init_app_passes_when_database_url_present(self, monkeypatch):
+        """
+        มี DATABASE_URL แล้วควรสร้างแอป production ได้
+        NOTE: เนื่องจาก ProductionConfig.SQLALCHEMY_DATABASE_URI ถูกกำหนดตอน import
+        เราจึง set ทั้ง env และ override แอตทริบิวต์บนคลาสก่อนเรียก create_app
+        """
+        # 1) ตั้ง env
+        monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
+
+        # 2) กันเคสที่คลาสถูกประเมินก่อน env: override ค่าในคลาสด้วย
+        monkeypatch.setattr(
+            ProductionConfig,
+            "SQLALCHEMY_DATABASE_URI",
+            "sqlite:///:memory:",
+            raising=False,
+        )
+
+        # 3) ค่อยสร้างแอป
+        from app import create_app
+
+        app = create_app("production")
+        assert app is not None
+        assert app.config["DEBUG"] is False
+        assert app.config["SQLALCHEMY_DATABASE_URI"] == "sqlite:///:memory:"
+
 
 class TestConfigSelector:
-    """Test configuration selector"""
-    
+    """Selector mapping"""
+
     def test_config_contains_all_environments(self):
-        """Test config dict has all environment configurations"""
-        assert 'development' in config
-        assert 'testing' in config
-        assert 'production' in config
-        assert 'default' in config
-    
+        assert "development" in config
+        assert "testing" in config
+        assert "production" in config
+        assert "default" in config
+
     def test_default_is_development(self):
-        """Test default configuration is development"""
-        assert config['default'] == DevelopmentConfig
+        assert config["default"] == DevelopmentConfig

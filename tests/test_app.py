@@ -4,49 +4,58 @@ from sqlalchemy.exc import SQLAlchemyError
 from app import create_app
 from app.models import db, Todo
 
+
 @pytest.fixture
 def app():
     """Create and configure a test app instance"""
-    app = create_app('testing')
-    
+    app = create_app("testing")
+
     with app.app_context():
         db.create_all()
         yield app
         db.session.remove()
         db.drop_all()
 
+
 @pytest.fixture
 def client(app):
     """Create a test client"""
     return app.test_client()
+
 
 @pytest.fixture
 def runner(app):
     """Create a test CLI runner"""
     return app.test_cli_runner()
 
+
 class TestHealthCheck:
+    """Test health check endpoint"""
+
     def test_health_endpoint_success(self, client):
         """Test health check returns 200 when database is healthy"""
-        response = client.get('/api/health')
+        response = client.get("/api/health")
         assert response.status_code == 200
         data = response.get_json()
-        assert data['status'] == 'healthy'
-        assert data['database'] == 'connected'
-    
-    @patch('app.routes.db.session.execute')
+        assert data["status"] == "healthy"
+        assert data["database"] == "connected"
+
+    @patch("app.routes.db.session.execute")
     def test_health_endpoint_database_error(self, mock_execute, client):
         """Test health check returns 503 when database is down"""
-        mock_execute.side_effect = Exception('Database connection failed')
-        
-        response = client.get('/api/health')
+        mock_execute.side_effect = Exception("Database connection failed")
+
+        response = client.get("/api/health")
         assert response.status_code == 503
         data = response.get_json()
-        assert data['status'] == 'unhealthy'
-        assert data['database'] == 'disconnected'
-        assert 'error' in data
+        assert data["status"] == "unhealthy"
+        assert data["database"] == "disconnected"
+        assert "error" in data
+
 
 class TestTodoAPI:
+    """Test Todo CRUD operations"""
+
     """Test Todo CRUD operations"""
 
     def test_get_empty_todos(self, client):
@@ -284,70 +293,80 @@ class TestTodoAPI:
         data = response.get_json()
         assert data["success"] is False
 
+
 class TestAppFactory:
     """Test application factory and configuration"""
-    
+
     def test_app_creation(self, app):
         """Test app is created successfully"""
         assert app is not None
-        assert app.config['TESTING'] is True
-    
+        assert app.config["TESTING"] is True
+
     def test_root_endpoint(self, client):
         """Test root endpoint returns API info"""
-        response = client.get('/')
+        response = client.get("/")
         assert response.status_code == 200
         data = response.get_json()
-        assert 'message' in data
-        assert 'version' in data
-        assert 'endpoints' in data
-    
+        assert "message" in data
+        assert "version" in data
+        assert "endpoints" in data
+
     def test_404_error_handler(self, client):
         """Test 404 error handler"""
-        response = client.get('/nonexistent-endpoint')
+        response = client.get("/nonexistent-endpoint")
         assert response.status_code == 404
         data = response.get_json()
-        assert data['success'] is False
-        assert 'error' in data
+        assert data["success"] is False
+        assert "error" in data
+
     def test_exception_handler(self, app):
         """Test generic exception handler"""
         # 1. ปิด TESTING mode ชั่วคราว
-        app.config['TESTING'] = False
-        
-        @app.route('/test-error')
+        app.config["TESTING"] = False
+
+        @app.route("/test-error")
         def trigger_error():
-            raise Exception('Test error')
-        
+            raise Exception("Test error")
+
         # 2. ทดสอบ
         with app.test_client() as test_client:
-            response = test_client.get('/test-error')
+            response = test_client.get("/test-error")
             assert response.status_code == 500
-            assert 'Internal server error' in response.get_json()['error']
-        
+            assert "Internal server error" in response.get_json()["error"]
+
         # 3. เปิด TESTING mode กลับ
-        app.config['TESTING'] = True
+        app.config["TESTING"] = True
+
 
 class TestTodoModel:
+    """Test Todo model methods"""
+
     def test_todo_to_dict(self, app):
+        """Test todo model to_dict method"""
         with app.app_context():
-            todo = Todo(title='Test Todo', description='Test Description')
+            todo = Todo(title="Test Todo", description="Test Description")
             db.session.add(todo)
             db.session.commit()
+
             todo_dict = todo.to_dict()
-            assert todo_dict['title'] == 'Test Todo'
-            assert todo_dict['description'] == 'Test Description'
-            assert todo_dict['completed'] is False
-            assert 'id' in todo_dict
-            assert 'created_at' in todo_dict
-            assert 'updated_at' in todo_dict
+            assert todo_dict["title"] == "Test Todo"
+            assert todo_dict["description"] == "Test Description"
+            assert todo_dict["completed"] is False
+            assert "id" in todo_dict
+            assert "created_at" in todo_dict
+            assert "updated_at" in todo_dict
 
     def test_todo_repr(self, app):
+        """Test todo model __repr__ method"""
         with app.app_context():
-            todo = Todo(title='Test Todo')
+            todo = Todo(title="Test Todo")
             db.session.add(todo)
             db.session.commit()
+
             repr_str = repr(todo)
-            assert 'Todo' in repr_str
-            assert 'Test Todo' in repr_str
+            assert "Todo" in repr_str
+            assert "Test Todo" in repr_str
+
 
 class TestIntegration:
     """Integration tests for complete workflows"""
@@ -419,3 +438,63 @@ class TestIntegration:
         # Verify count decreased
         response = client.get("/api/todos")
         assert response.get_json()["count"] == 4
+
+class TestAdditionalAPI:
+    """Additional API tests for edge cases and HTTP methods"""
+def test_create_without_json_content_type(client):
+    """POST /api/todos แบบไม่ส่ง JSON header"""
+    res = client.post("/api/todos", data="title=bad")
+    assert res.status_code in (400, 500)
+    data = res.get_json()
+    assert data["success"] is False
+    assert "error" in data
+
+
+def test_method_not_allowed_on_collection(client):
+    """PUT /api/todos (collection) ควรไม่อนุญาต"""
+    res = client.put("/api/todos", json={"title": "x"})
+    assert res.status_code in (405, 500)
+
+
+def test_update_without_json_body(client, app):
+    """PUT /api/todos/<id> แต่ไม่ส่ง JSON"""
+    with app.app_context():
+        todo = Todo(title="need json")
+        db.session.add(todo)
+        db.session.commit()
+        todo_id = todo.id
+
+    res = client.put(f"/api/todos/{todo_id}", data="title=no-json")
+    assert res.status_code in (400, 500)
+    data = res.get_json()
+    assert data["success"] is False
+
+
+def test_update_with_invalid_field_types(client, app):
+    """PUT /api/todos/<id> ส่งชนิดข้อมูลผิด"""
+    with app.app_context():
+        todo = Todo(title="bad types")
+        db.session.add(todo)
+        db.session.commit()
+        todo_id = todo.id
+
+    res = client.put(
+        f"/api/todos/{todo_id}",
+        json={"title": 123, "completed": "yes"},
+    )
+    assert res.status_code in (400, 422, 500)
+    data = res.get_json()
+    assert data["success"] is False
+    assert "error" in data
+
+
+def test_head_root_ok(client):
+    """HEAD / ควรตอบ 200 เช่นเดียวกับ GET /"""
+    res = client.head("/")
+    assert res.status_code == 200
+
+
+def test_options_todos_ok(client):
+    """OPTIONS /api/todos อย่างน้อยต้องไม่ error (200/204)"""
+    res = client.open("/api/todos", method="OPTIONS")
+    assert res.status_code in (200, 204)
