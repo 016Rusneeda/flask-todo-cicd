@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask_sqlalchemy import SQLAlchemy
 
+
 db = SQLAlchemy()
 
 
@@ -15,7 +16,8 @@ class Todo(db.Model):
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,
-        nullable=False)
+        nullable=False
+    )
     updated_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,

@@ -1,6 +1,6 @@
 import os
-
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -39,7 +39,6 @@ class ProductionConfig(Config):
     @classmethod
     def init_app(cls, app):
         Config.init_app(app)
-        # Production-specific initialization
         assert os.getenv(
             'DATABASE_URL'), 'DATABASE_URL must be set in production'
 
@@ -50,3 +49,4 @@ config = {
     'production': ProductionConfig,
     'default': DevelopmentConfig
 }
+

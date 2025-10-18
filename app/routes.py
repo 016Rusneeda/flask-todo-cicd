@@ -3,6 +3,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.models import db, Todo
 
+
 api = Blueprint('api', __name__)
 
 
@@ -147,3 +148,4 @@ def delete_todo(todo_id):
             'success': False,
             'error': 'Failed to delete todo'
         }), 500
+
